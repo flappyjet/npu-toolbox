@@ -66,11 +66,15 @@ find_lib() {
     # kernel modules
     echo -e "\n[modules]"
     MOD_PATH="/lib/modules/$KVER/kernel/drivers"
-    KO_ETNAVIV="$(find $MOD_PATH/gpu -name "etnaviv.ko" 2>/dev/null | head -n 1)"
+    KO_RKNPU="$(find $MOD_PATH -name "rknpu.ko" 2>/dev/null | head -n 1)"
+    KO_ETHOS="$(find $MOD_PATH -name "ethos*.ko" 2>/dev/null | head -n 1)"
     KO_GALCORE="$(find $MOD_PATH -name "galcore.ko" 2>/dev/null | head -n 1)"
-    KO_ACCEL="$(find $MOD_PATH/accel -name "rocket.ko" 2>/dev/null | head -n 1)"
-    echo "etanviv=\"$KO_ETNAVIV\""
+    KO_ETNAVIV="$(find $MOD_PATH -name "etnaviv.ko" 2>/dev/null | head -n 1)"
+    KO_ACCEL="$(find $MOD_PATH -name "rocket.ko" 2>/dev/null | head -n 1)"
+    echo "rknpu=\"$KO_RKNPU\""
+    echo "ethos=\"$KO_ETHOS\""
     echo "galcore=\"$KO_GALCORE\""
+    echo "etanviv=\"$KO_ETNAVIV\""
     echo "rocket=\"$KO_ACCEL\""
 
     echo -e "\n[devices]"
