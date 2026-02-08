@@ -56,9 +56,13 @@ find_lib() {
     echo -e "\n[platform]"
     KVER=$(uname -r)
     ARCH=$(uname -m)
+    COMPAT=$(tr '\0' ',' < /proc/device-tree/compatible 2>/dev/null || echo "unknown")
     BOARDMODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "unknown")
+    FAMILY=$(tr -d '\0' < /sys/devices/soc0/family 2>/dev/null || echo "unknown")
     SOC=$(tr -d '\0' < /sys/devices/soc0/soc_id 2>/dev/null || echo "unknown")
+    echo "comatible=\"$COMPAT\""
     echo "model=\"$BOARDMODEL\""
+    echo "family=\"$FAMILY\""
     echo "soc_id=\"$SOC\""
     echo "arch=\"$ARCH\""
     echo "kernel=\"$KVER\""
@@ -66,9 +70,9 @@ find_lib() {
     # kernel modules
     echo -e "\n[modules]"
     MOD_PATH="/lib/modules/$KVER/kernel/drivers"
-    KO_RKNPU="$(find $MOD_PATH -name "rknpu.ko" 2>/dev/null | head -n 1)"
+    KO_RKNPU="$(find $MOD_PATH -name "rknpu*.ko" 2>/dev/null | head -n 1)"
     KO_ETHOS="$(find $MOD_PATH -name "ethos*.ko" 2>/dev/null | head -n 1)"
-    KO_GALCORE="$(find $MOD_PATH -name "galcore.ko" 2>/dev/null | head -n 1)"
+    KO_GALCORE="$(find $MOD_PATH -name "galcore*.ko" 2>/dev/null | head -n 1)"
     KO_ETNAVIV="$(find $MOD_PATH -name "etnaviv.ko" 2>/dev/null | head -n 1)"
     KO_ACCEL="$(find $MOD_PATH -name "rocket.ko" 2>/dev/null | head -n 1)"
     echo "rknpu=\"$KO_RKNPU\""
