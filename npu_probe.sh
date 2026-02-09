@@ -66,6 +66,8 @@ find_lib() {
     echo "soc_id=\"$SOC\""
     echo "arch=\"$ARCH\""
     echo "kernel=\"$KVER\""
+    AMLOGIC="$(grep -E "^a311d$" <<< $(sed '/amlogic/ s/[[:space:]]*,/,/g;  s/,[[:space:]]*/\n/g' <<< $COMPAT))"
+    ROCKCHIP="$(grep -E "^rk[0-9]{4}$" <<< $(sed '/rockchip/ s/[[:space:]]*,/,/g; s/,[[:space:]]*/\n/g' <<< $COMPAT))"
 
     # kernel modules
     echo -e "\n[modules]"
@@ -75,11 +77,15 @@ find_lib() {
     MOD_GALCORE="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "galcore*" 2>/dev/null | head -n 1)"
     MOD_ETNAVIV="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "etnaviv" 2>/dev/null | head -n 1)"
     MOD_ROCKET="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "rocket" 2>/dev/null | head -n 1)"
-    [[ -n $MOD_RKNPU ]] && echo "rknpu=\"$MOD_RKNPU\""
-    [[ -n $MOD_ETHOS ]] && echo "ethos=\"$MOD_ETHOS\""
-    [[ -n $MOD_GALCORE ]] && echo "galcore=\"$MOD_GALCORE\""
-    [[ -n $MOD_ETNAVIV ]] && echo "etanviv=\"$MOD_ETNAVIV\""
-    [[ -n $MOD_ROCKET ]] && echo "rocket=\"$MOD_ROCKET\""
+    if [[ -n "$AMLOGIC" ]]; then
+        echo "galcore=\"$MOD_GALCORE\""
+        echo "etanviv=\"$MOD_ETNAVIV\""
+    fi
+    if [[ -n "$ROCKCHIP" ]]; then
+       echo "rknpu=\"$MOD_RKNPU\""
+       echo "rocket=\"$MOD_ROCKET\""
+    fi
+    #[[ -n $MOD_ETHOS ]] && echo "ethos=\"$MOD_ETHOS\""
 
     echo -e "\n[devices]"
 
@@ -95,7 +101,7 @@ find_lib() {
 
     for i in "${!nodes[@]}"; do
         #echo "$i  ${nodes[$i]} # Driver: ${drivers[$i]}"
-        if [[ "${drivers[$i]}" =~ ^(etnaviv|rocket)$ ]]; then
+        if [[ "${drivers[$i]}" =~ ^(etnaviv|rocket|rknpu|galcore|ethos).*$ ]]; then
             target_idx=$i
             break
         fi
@@ -141,7 +147,7 @@ find_lib() {
             echo "delegate=\"$so\""
             break
         fi
-    done 
+    done
     [[ $ret != 0 ]] && echo "no_delegate=1"
 
 ) | tee npu_env.toml
