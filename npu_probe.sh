@@ -69,17 +69,17 @@ find_lib() {
 
     # kernel modules
     echo -e "\n[modules]"
-    MOD_PATH="/lib/modules/$KVER/kernel/drivers"
-    KO_RKNPU="$(find $MOD_PATH -name "rknpu*.ko" 2>/dev/null | head -n 1)"
-    KO_ETHOS="$(find $MOD_PATH -name "ethos*.ko" 2>/dev/null | head -n 1)"
-    KO_GALCORE="$(find $MOD_PATH -name "galcore*.ko" 2>/dev/null | head -n 1)"
-    KO_ETNAVIV="$(find $MOD_PATH -name "etnaviv.ko" 2>/dev/null | head -n 1)"
-    KO_ACCEL="$(find $MOD_PATH -name "rocket.ko" 2>/dev/null | head -n 1)"
-    echo "rknpu=\"$KO_RKNPU\""
-    echo "ethos=\"$KO_ETHOS\""
-    echo "galcore=\"$KO_GALCORE\""
-    echo "etanviv=\"$KO_ETNAVIV\""
-    echo "rocket=\"$KO_ACCEL\""
+    SYS_MOD_PATH="/sys/module" # besides *.ko in "/lib/modules/$KVER/kernel/drivers" also include build-in
+    MOD_RKNPU="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "rknpu*" 2>/dev/null | head -n 1)"
+    MOD_ETHOS="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "ethos*" 2>/dev/null | head -n 1)"
+    MOD_GALCORE="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "galcore*" 2>/dev/null | head -n 1)"
+    MOD_ETNAVIV="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "etnaviv" 2>/dev/null | head -n 1)"
+    MOD_ROCKET="$(find $SYS_MOD_PATH -maxdepth 1 -type d -name "rocket" 2>/dev/null | head -n 1)"
+    [[ -n $MOD_RKNPU ]] && echo "rknpu=\"$MOD_RKNPU\""
+    [[ -n $MOD_ETHOS ]] && echo "ethos=\"$MOD_ETHOS\""
+    [[ -n $MOD_GALCORE ]] && echo "galcore=\"$MOD_GALCORE\""
+    [[ -n $MOD_ETNAVIV ]] && echo "etanviv=\"$MOD_ETNAVIV\""
+    [[ -n $MOD_ROCKET ]] && echo "rocket=\"$MOD_ROCKET\""
 
     echo -e "\n[devices]"
 
