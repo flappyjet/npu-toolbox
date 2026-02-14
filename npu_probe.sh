@@ -101,7 +101,7 @@ find_lib() {
 
     for i in "${!nodes[@]}"; do
         #echo "$i  ${nodes[$i]} # Driver: ${drivers[$i]}"
-        if [[ "${drivers[$i]}" =~ ^(etnaviv|rocket|rknpu|galcore|ethos).*$ ]]; then
+        if [[ "${drivers[$i],,}" =~ ^(etnaviv|rocket|rknpu|galcore|ethos).*$ ]]; then
             target_idx=$i
             break
         fi
@@ -149,5 +149,26 @@ find_lib() {
         fi
     done
     [[ $ret != 0 ]] && echo "no_delegate=1"
+
+    if [[ -n "$ROCKCHIP" ]]; then
+        RK_SO_LIST=("librknnrt.so" "librkllmrt.so")
+        FOUND_PATHS=()
+        for i in "${!RK_SO_LIST[@]}"; do
+            so="$(find_lib ${RK_SO_LIST[$i]})"
+            ret=$?
+            if [[ $ret == 0 ]]; then
+                FOUND_PATHS+=("$so")
+            fi
+        done
+        if [[ "${#FOUND_PATHS[@]}" -eq 0 ]]; then
+            echo "vendor_libs=[]"
+        else
+            echo "vendor_libs=["
+            for i in "${!FOUND_PATHS[@]}"; do
+                echo "  \"${FOUND_PATHS[$i]}\""
+            done
+            echo "]"
+        fi
+    fi
 
 ) | tee npu_env.toml
