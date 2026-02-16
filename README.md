@@ -13,7 +13,64 @@ tools for NPUs on edge computing devices
 | **NXP** | i.MX 8M Plus | **1.0 TOPS** | `galcore.ko` | `/dev/galcore` | Coral Dev Board, Toradex Verdin |
 | **NXP** | i.MX 93 | **1.0 TOPS** | `ethos_u.ko` | `/dev/ethosU*` | i.MX 93 Evaluation Kit, Industrial Gateways |
 
+## How data flow to NPU:
+
+User's Program
+
+   ↓
+
+Glue Layer (Delegate)
+
+   ↓
+
+Runtime Library (Inference Engine)
+
+   ↓
+
+Kernel Module (Driver)
+
+   ↓
+
+NPU Hardware (Soc)
+
+
+## Different implementation comparison:
+
+### Vendor (Amlogic) vs. Mainline (Linux)
+
+| Layer | Vendor Stack | Linux (Mainline) Stack |
+| :--- | :--- | :--- |
+| **User's Model File** | AI Application (TFLite, ONNX) | AI Application (TFLite) |
+| **Glue Layer** | `libvx_delegate.so` | `teflon.so` (TFLite Delegate) |
+| **Runtime** | `libtim-vx.so`, `libOpenVX.so` | `libgallium.so` (Mesa) |
+| **Kernel Module** | `galcore.ko` (for kernel 4.9, 5.15) | `etnaviv.ko` |
+| **Hardware** | A311D NPU (Vivante VIP8000) | Same | 
+
+---
+
+### Vendor (Rockchip) vs. Mainline (Linux)
+
+| Layer | Rockchip (Vendor) Stack | Linux (Mainline) Stack |
+| :--- | :--- | :--- |
+| **User's Model File** | AI Application (.rknn) | AI Application (TFLite, ONNX) |
+| **Glue Layer** | `librknn_delegate.so` | `teflon.so` (TFLite Delegate) |
+| **Runtime** | `librknnrt.so`, `librkllmrt.so` | `libgallium.so` (Mesa) |
+| **Kernel Module** | `rknpu.ko` (v0.9.8) | `rocket.ko` |
+| **Hardware** | RK3588 NPU (3-Core Design) | Same | 
+
+---
+
+*Implementation Details*
+
+The Amlogic vendor stack relies on the Vivante `galcore` kernel module. It uses the ION memory allocator or DMA-BUF to share buffers between the CPU and NPU, ensuring zero-copy data transfer during inference.
+
+The Rockchip vendor driver `rknpu` is licensed under GPL v2 and typically integrates deeply with Rockchip's specialized memory management for performance. The vendor stack uses specialized GEM (Graphics Execution Manager) objects to manage memory across different cores and cache types like SRAM or NBUF.
+
+The community-driven drivers (eg. `rocket`, `etnaviv`) aim for integration with standard Linux subsystems like `accel` for broader compatibility at the cost of some vendor-specific optimizations.
+
+
 ## Some Guides:
 * https://github.com/airockchip/rknn-toolkit2
+* https://github.com/airockchip/rknn-llm
 * https://docs.khadas.com/products/sbc/vim3/npu/vx-tflite
 * https://www.nxp.com.cn/docs/en/user-guide/IMXMLUG.pdf
