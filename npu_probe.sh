@@ -119,7 +119,7 @@ find_lib() {
                     echo "  \"${nodes[$i]}\" # Driver: ${drivers[$i]}"
                 fi
             done
-            echo "]"]
+            echo "]"
         fi
     fi
     if [[ -n "$vendor_node" || -z "$target_idx" ]]; then
@@ -155,6 +155,27 @@ find_lib() {
         FOUND_PATHS=()
         for i in "${!RK_SO_LIST[@]}"; do
             so="$(find_lib ${RK_SO_LIST[$i]})"
+            ret=$?
+            if [[ $ret == 0 ]]; then
+                FOUND_PATHS+=("$so")
+            fi
+        done
+        if [[ "${#FOUND_PATHS[@]}" -eq 0 ]]; then
+            echo "vendor_libs=[]"
+        else
+            echo "vendor_libs=["
+            for i in "${!FOUND_PATHS[@]}"; do
+                echo "  \"${FOUND_PATHS[$i]}\""
+            done
+            echo "]"
+        fi
+    fi
+
+    if [[ -n "$AMLOGIC" && -n "$MOD_GALCORE" ]]; then
+        GA_SO_LIST=("libtim-vx.so" "libOpenVX.so")
+        FOUND_PATHS=()
+        for i in "${!GA_SO_LIST[@]}"; do
+            so="$(find_lib ${GA_SO_LIST[$i]})"
             ret=$?
             if [[ $ret == 0 ]]; then
                 FOUND_PATHS+=("$so")
