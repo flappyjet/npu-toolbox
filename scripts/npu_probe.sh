@@ -1,5 +1,5 @@
 #!/bin/bash
-
+OUTPUT_DIR="${TOOLBOX_BASE_DIR:-$(pwd)}"
 get_vendor_npu() {
     local vendor_devices=("/dev/galcore" "/dev/rknpu")
     for dev in "${vendor_devices[@]}"; do
@@ -56,14 +56,14 @@ find_lib() {
     echo -e "\n[platform]"
     KVER=$(uname -r)
     ARCH=$(uname -m)
-    COMPAT=$(tr '\0' ',' < /proc/device-tree/compatible 2>/dev/null || echo "unknown")
-    BOARDMODEL=$(tr -d '\0' < /proc/device-tree/model 2>/dev/null || echo "unknown")
-    FAMILY=$(tr -d '\0' < /sys/devices/soc0/family 2>/dev/null || echo "unknown")
-    SOC=$(tr -d '\0' < /sys/devices/soc0/soc_id 2>/dev/null || echo "unknown")
-    echo "comatible=\"$COMPAT\""
-    echo "model=\"$BOARDMODEL\""
-    echo "family=\"$FAMILY\""
-    echo "soc_id=\"$SOC\""
+    COMPAT=$(cat /proc/device-tree/compatible 2>/dev/null | tr '\0' ',')
+    BOARDMODEL=$(cat /proc/device-tree/model 2>/dev/null | tr '\0' ',')
+    FAMILY=$(cat /sys/devices/soc0/family 2>/dev/null | tr '\0' ',')
+    SOC=$(cat /sys/devices/soc0/soc_id 2>/dev/null | tr '\0' ',')
+    echo "comatible=\"$([ -z $COMPAT ] && echo 'unkown' || echo $COMPAT)\""
+    echo "model=\"$([ -z $BOARDMODEL ] && echo 'unkown' || echo $BOARDMODEL)\""
+    echo "family=\"$([ -z $FAMILY ] && echo 'unkown' || echo $FAMILY)\""
+    echo "soc_id=\"$([ -z $SOC ] && echo 'unkown' || echo $SOC)\""
     echo "arch=\"$ARCH\""
     echo "kernel=\"$KVER\""
     AMLOGIC="$(grep -E "^a311d$" <<< $(sed '/amlogic/ s/[[:space:]]*,/,/g;  s/,[[:space:]]*/\n/g' <<< $COMPAT))"
@@ -192,4 +192,4 @@ find_lib() {
         fi
     fi
 
-) | tee npu_env.toml
+) | tee $OUTPUT_DIR/npu_env.toml
