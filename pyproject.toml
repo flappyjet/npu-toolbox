@@ -1,0 +1,13 @@
+[project]
+name = "npu-toolbox"
+version = "0.1.0"
+description = "Tools for NPUs on edge computing devices"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [{ name = "flappyjet" }]
+[project.urls]
+repository = "https://github.com/flappyjet/npu-toolbox.git"
+[project.scripts]
+npu-toolbox = "toolbox.cli:main"
+[tool.setuptools]
+packages = ["toolbox"]
