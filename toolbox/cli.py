@@ -5,7 +5,7 @@ Usage:
 
 How to add 'npu-toolbox' command to system:
 1. `cd npu-toolbox`
-2. `uv pip install --system ---editable .` or `pip install -e .`
+2. `uv tool install ---editable .`(recommendation) or `uv pip install -e .`(for dev)
 """
 
 import argparse
@@ -69,6 +69,17 @@ def get_script_deps(script_name):
             return []
     return []
 
+def get_install_type():
+    exe = sys.executable
+    if "/uv/tools" in exe:
+        return "uv_tool"
+    
+    # In a standard virtual env or editable install
+    if sys.base_prefix != sys.prefix:
+        return "pip_editable"
+        
+    return "system"
+
 def check_system_deps(commands):
     """Verifies that required shell commands exist in PATH."""
     missing = [cmd for cmd in commands if shutil.which(cmd) is None]
@@ -116,9 +127,11 @@ def run_command(cmd_name, args, extra_args=None):
 
     # Check Dependencies
     sys_reqs = cfg.get("system_deps", [])
-    py_reqs = cfg.get("python_deps", get_script_deps(script_file))
     check_system_deps(sys_reqs)
-    check_python_deps(py_reqs)
+    py_reqs = cfg.get("python_deps", get_script_deps(script_file))
+    install_type = get_install_type()
+    if install_type == "pip_editable":
+        check_python_deps(py_reqs)
 
     # Execution
     env = os.environ.copy()
@@ -126,8 +139,10 @@ def run_command(cmd_name, args, extra_args=None):
     #print(f"Running {cmd_name}...")
     try:
         if script_path.suffix == ".py":
-            # Using sys.executable ensures we use the same Python that ran this CLI
-            subprocess.run([sys.executable, str(script_path)], env=env, check=True)
+            runpy = ["uv", "run", str(script_path)]
+            if install_type == "pip_editable":
+                runpy = [sys.executable, str(script_path)]
+            subprocess.run(runpy, env=env, check=True)
         else:
             subprocess.run(["bash", str(script_path)], env=env, check=True)
     except subprocess.CalledProcessError as e:
