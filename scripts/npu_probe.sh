@@ -25,7 +25,7 @@ get_linux_npu() {
             [[ -e "$dev" ]] || continue
             local drv=$(cat "$dev/device/uevent" | grep "DRIVER=" | cut -d= -f2)
             # filter well-known gpu drivers
-            [[ "$drv" =~ ^(i915|amdgpu|radeon|nouveau|panfrost|panthor|virtio-gpu)$ ]] && continue
+            [[ "$drv" =~ ^(i915|amdgpu|radeon|nouveau|virtio-gpu)$ ]] && continue
             echo "/dev/dri/${dev##*/}|$drv"
         done
     fi
@@ -60,10 +60,10 @@ find_lib() {
     BOARDMODEL=$(cat /proc/device-tree/model 2>/dev/null | tr '\0' ',')
     FAMILY=$(cat /sys/devices/soc0/family 2>/dev/null | tr '\0' ',')
     SOC=$(cat /sys/devices/soc0/soc_id 2>/dev/null | tr '\0' ',')
-    echo "comatible=\"$([ -z $COMPAT ] && echo 'unkown' || echo $COMPAT)\""
-    echo "model=\"$([ -z $BOARDMODEL ] && echo 'unkown' || echo $BOARDMODEL)\""
-    echo "family=\"$([ -z $FAMILY ] && echo 'unkown' || echo $FAMILY)\""
-    echo "soc_id=\"$([ -z $SOC ] && echo 'unkown' || echo $SOC)\""
+    echo "comatible=\"$([[ -z "$COMPAT" ]] && echo 'unknown' || echo "$COMPAT")\""
+    echo "model=\"$([[ -z "$BOARDMODEL" ]] && echo 'unknown' || echo "$BOARDMODEL")\""
+    echo "family=\"$([[ -z "$FAMILY" ]] && echo 'unknown' || echo "$FAMILY")\""
+    echo "soc_id=\"$([[ -z "$SOC" ]] && echo 'unknown' || echo "$SOC")\""
     echo "arch=\"$ARCH\""
     echo "kernel=\"$KVER\""
     AMLOGIC="$(grep -E "^a311d$" <<< $(sed '/amlogic/ s/[[:space:]]*,/,/g;  s/,[[:space:]]*/\n/g' <<< $COMPAT))"
@@ -116,7 +116,7 @@ find_lib() {
             echo "devices_not_support=["
             for i in "${!nodes[@]}"; do
                 if [[ $i != $target_idx ]]; then
-                    echo "  \"${nodes[$i]}\" # Driver: ${drivers[$i]}"
+                    echo "  \"${nodes[$i]}\", # Driver: ${drivers[$i]}"
                 fi
             done
             echo "]"
@@ -130,7 +130,7 @@ find_lib() {
         if [[ "${#nodes[@]}" -ge 1 ]]; then
             echo "devices_not_support=["
             for i in "${!nodes[@]}"; do
-                echo "  \"${nodes[$i]}\" # Driver: ${drivers[$i]}"
+                echo "  \"${nodes[$i]}\", # Driver: ${drivers[$i]}"
             done
             echo "]"
         fi
@@ -165,7 +165,7 @@ find_lib() {
         else
             echo "vendor_libs=["
             for i in "${!FOUND_PATHS[@]}"; do
-                echo "  \"${FOUND_PATHS[$i]}\""
+                echo "  \"${FOUND_PATHS[$i]}\","
             done
             echo "]"
         fi
@@ -186,7 +186,7 @@ find_lib() {
         else
             echo "vendor_libs=["
             for i in "${!FOUND_PATHS[@]}"; do
-                echo "  \"${FOUND_PATHS[$i]}\""
+                echo "  \"${FOUND_PATHS[$i]}\","
             done
             echo "]"
         fi
