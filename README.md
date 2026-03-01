@@ -1,6 +1,45 @@
-# npu-toolbox
-tools for NPUs on edge computing devices
+# Introduction
+**npu-toolbox** is a command-line tool collection for the edge computing device with NPU.
 
+# Get Started
+## Installation
+First, get source code by run `git clone https://github.com/flappyjet/npu-toolbox.git`
+
+Check uv installed with `which uv`. If your don't have uv installed, follow this guide https://docs.astral.sh/uv/getting-started/installation/#installation-methods
+
+Then, add 'npu-toolbox' command to system:
+1. `cd npu-toolbox`
+2. `uv tool install ---editable .`(recommendation) or `uv pip install -e .`(for dev)
+
+Now you can use npu-toolbox.
+
+```
+~/npu-toolbox# npu-toolbox --help
+Usage: npu-toolbox [OPTIONS] COMMAND [COMMAND_ARGS]
+
+Options:
+  -h, --help         Show this help message and exit
+  --ramlimit SIZE    Limit the process tree RAM usage (unit MB)
+
+Commands:
+  list          List all subcommands
+  probe         Probe NPU driver and runtime
+  benchmark     Run NPU benchmark
+
+Run 'npu-toolbox COMMAND --help' for specific script options.
+```
+
+## Use tool
+NPU detection (ask sudo)
+```
+~/npu-toolbox# npu-toolbox probe
+```
+NPU benchmark
+```
+~/npu-toolbox# npu-toolbox benchmark
+```
+
+# Reference
 ## Devices with NPU:
 | Vendor | SoC / Chip Series | NPU capabilty (INT8) | Kernel Module | Device Node | Common Devices |
 | :--- | :--- | :--- | :--- | :--- | :--- |
@@ -38,7 +77,7 @@ NPU Hardware (Soc)
 
 ### Vendor (Amlogic) vs. Mainline (Linux)
 
-| Layer | Vendor Stack | Linux (Mainline) Stack |
+| Layer | Vendor (Amlogic) | Linux (Mainline) Stack |
 | :--- | :--- | :--- |
 | **User's Model File** | AI Application (TFLite, ONNX) | AI Application (TFLite) |
 | **Glue Layer** | `libvx_delegate.so` | `teflon.so` (TFLite Delegate) |
@@ -50,7 +89,7 @@ NPU Hardware (Soc)
 
 ### Vendor (Rockchip) vs. Mainline (Linux)
 
-| Layer | Rockchip (Vendor) Stack | Linux (Mainline) Stack |
+| Layer | Vendor (Rockchip) Stack | Linux (Mainline) Stack |
 | :--- | :--- | :--- |
 | **User's Model File** | AI Application (.rknn) | AI Application (TFLite, ONNX) |
 | **Glue Layer** | `librknn_delegate.so` | `teflon.so` (TFLite Delegate) |
