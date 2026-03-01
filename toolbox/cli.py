@@ -30,7 +30,7 @@ COMMANDS = {
         "script": "npu_probe.sh",
         "help": "Probe NPU driver and runtime",
         "system_deps": [],
-        "python_deps": [], 
+        "sudo": True, 
     },
     # here auto-discover from the script rather than fixed python_deps
     "benchmark": {
@@ -46,6 +46,11 @@ GREEN  = "\033[92m"
 YELLOW = "\033[93m"
 BLUE   = "\033[94m"
 RESET  = "\033[0m"
+
+SYSTEMDRUN_FIX = '''if [ -z "$XDG_RUNTIME_DIR" ] && [ -d "/run/user/$(id -u)" ]; then
+    export XDG_RUNTIME_DIR=/run/user/$(id -u)
+    export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+fi'''
 
 def get_script_deps(script_name):
     """Auto-discovers PEP 723 python dependencies using regex and ast."""
@@ -110,12 +115,12 @@ def run_command(cmd_name, args, extra_args=None):
     if cmd_name == "list":
         print(f"{GREEN}Usage:{RESET} {BLUE}npu-toolbox [OPTIONS] COMMAND [COMMAND_ARGS]{RESET}\n")
         print(f"{GREEN}Options:{RESET}")
-        print(f"  {BLUE}-h, --help{RESET}    Show this help message and exit")
-        print(f"  {BLUE}--ramlimit{RESET}    Limit the process tree RAM usage (unit MB)\n")
+        print(f"  {BLUE}-h, --help{RESET}         Show this help message and exit")
+        print(f"  {BLUE}--ramlimit SIZE{RESET}    Limit the process tree RAM usage (unit MB)\n")
         print(f"{GREEN}Commands:{RESET}")
         for name, info in COMMANDS.items():
             print(f"  {BLUE}{name:<13}{RESET} {info.get('help', '')}")
-        print(f"\nRun 'npu-toolbox <command> --help' for specific script options.")
+        print(f"\nRun 'npu-toolbox COMMAND --help' for specific script options.")
         return
 
     script_file = cfg.get("script")
@@ -125,56 +130,117 @@ def run_command(cmd_name, args, extra_args=None):
         print(f"{RED}Error:{RESET} script not found '{script_path}'")
         sys.exit(1)
 
+    install_type = get_install_type()
+
     # Check Dependencies
     sys_reqs = cfg.get("system_deps", [])
     check_system_deps(sys_reqs)
-    py_reqs = cfg.get("python_deps", get_script_deps(script_file))
-    install_type = get_install_type()
-    if install_type == "pip_editable":
+    if script_path.suffix == ".py" and install_type == "pip_editable":
+        py_reqs = cfg.get("python_deps", get_script_deps(script_file))
         check_python_deps(py_reqs)
-
-    # Execution
+    
+    # Enviroment
     env = os.environ.copy()
     env["TOOLBOX_BASE_DIR"] = str(TOOLBOX_BASE_DIR)
-    #print(f"Running {cmd_name}...")
+
+    # Setup the Jail (RAM limit)
+    ram_mb = getattr(args, 'ramlimit', None)
+    cg_name = f"npu_jail_{os.getpid()}" if ram_mb else None
+    if ram_mb and not shutil.which("systemd-run"):
+        print(f"{RED}Error:{RESET} 'systemd-run' not found, which --ramlimit needed.")
+        sys.exit(1)
+    if ram_mb and (not os.environ.get("DBUS_SESSION_BUS_ADDRESS") or not os.environ.get("XDG_RUNTIME_DIR")):
+        print(f"{RED}Error:{RESET} the environment variables for systemd-run not found.")
+        print(f"{BLUE}Add these lines to your ~/.bashrc{RESET}\n{SYSTEMDRUN_FIX}")
+        sys.exit(1)
+    
+    # Setup inner command
+    inner_cmd = []
+    if script_path.suffix == ".py":
+        runpy = ["uv", "run", str(script_path)] + extra_args
+        if install_type == "pip_editable":
+            runpy = [sys.executable, str(script_path)] + extra_args
+        inner_cmd = runpy
+    else:
+        inner_cmd = ["bash", str(script_path)] + extra_args
+
+    if os.geteuid() != 0 and cfg.get("sudo") is True:
+        inner_cmd = ["sudo", "-E"] + inner_cmd
+
+    # Wrap with Jailer if needed
+    jail_cmd = []
+    if ram_mb:
+        jail_cmd = (["systemd-run", "--user"] if os.geteuid() != 0 else ["systemd-run"]) + [
+                "--scope",
+                #"--quiet",
+                f"--property=MemoryMax={ram_mb}M",
+                f"--property=MemorySwapMax=0",
+                "--collect" # Clean up logs immediately after finish
+            ]
+
+    # Execution
     try:
-        if script_path.suffix == ".py":
-            runpy = ["uv", "run", str(script_path)]
-            if install_type == "pip_editable":
-                runpy = [sys.executable, str(script_path)]
-            subprocess.run(runpy, env=env, check=True)
-        else:
-            subprocess.run(["bash", str(script_path)], env=env, check=True)
+        # print(f"Running {cmd_name}...")
+        subprocess.run(jail_cmd + inner_cmd, env=env, check=True)
     except subprocess.CalledProcessError as e:
         sys.exit(e.returncode)
 
 def main():
-    parser = argparse.ArgumentParser(prog='npu-toolbox', description='tools for NPUs on edge computing devices', add_help=False)
-    parser.add_argument('--ramlimit', action='store_true')
+    parser = argparse.ArgumentParser(prog='npu-toolbox',
+        description='tools for NPUs on edge computing devices',
+        add_help=False,
+        formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--ramlimit', type=str, metavar='SIZE', help="Limit the process tree RAM usage (unit MB)")
+    # Override the default error handler
+    def handle_arg_error(message):
+        print(f"{RED}Error:{RESET} {message}")
+        run_command("list", None)
+        sys.exit(1)
+    parser.error = handle_arg_error
+
+    def check_ramlimit_value(raw_value, warning_value=None):
+        try:
+            ramlimit = int(raw_value)
+            # Check for negative or zero values
+            if ramlimit <= 0:
+                raise argparse.ArgumentError('SIZE should be a positive integer')
+            # Safety Floor Check
+            if warning_value and ramlimit < warning_value:
+                print(f"{YELLOW}Warning:{RESET} {ramlimit}MB is very low. "
+                    "The process may be killed immediately by the kernel.")
+        except:
+            parser.error(f'argument --ramlimit: SIZE={args.ramlimit}, which should be a positive integer')
 
     args, unknown = parser.parse_known_args()
     user_command = None
     remaining_args = []
     wants_help = False
     for i, item in enumerate(unknown):
-        # If we see a help flag before finding a command, it's global help
-        if item in ('-h', '--help'):
-            wants_help = True
         if not item.startswith('-'):
             user_command = item
             remaining_args = unknown[i+1:]
             break
+        elif item in ('-h', '--help'):
+            # global help
+            wants_help = True
+        else:
+            parser.error(f"'{item}' is not a valid OPTION.")
 
-    # Triggered by: 'npu-toolbox', 'npu-toolbox --help'
-    if not user_command or (wants_help and not user_command):
-        run_command("list", args)
-        sys.exit(0)
+    # Triggered by: 'npu-toolbox', 'npu-toolbox --options'
+    if not user_command or wants_help:
+        if not wants_help:
+            if args.ramlimit is not None:
+                check_ramlimit_value(args.ramlimit)
+            parser.error(f"COMMAND not found.")
+        else:
+            run_command("list", args)
+            sys.exit(0)
 
     # Triggered by: 'npu-toolbox unknown-command'
     if user_command not in COMMANDS:
-        print(f"{RED}Error:{RESET} '{user_command}' is not a valid command.")
-        run_command("list", args)
-        sys.exit(1)
+        parser.error(f"'{user_command}' is not a valid COMMAND.")
+    elif args.ramlimit is not None:
+        check_ramlimit_value(args.ramlimit, 50)
 
     # Triggered by: 'npu-toolbox command --help' 
     run_command(user_command, args, remaining_args)
