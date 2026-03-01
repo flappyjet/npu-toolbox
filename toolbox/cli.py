@@ -224,22 +224,25 @@ def main():
             # global help
             wants_help = True
         else:
-            parser.error(f"'{item}' is not a valid OPTION.")
+            parser.error(f"'argument {item}' is not a valid OPTION.")
 
     # Triggered by: 'npu-toolbox', 'npu-toolbox --options'
-    if not user_command or wants_help:
-        if not wants_help:
-            if args.ramlimit is not None:
-                check_ramlimit_value(args.ramlimit)
-            parser.error(f"COMMAND not found.")
-        else:
-            run_command("list", args)
-            sys.exit(0)
+    if wants_help:
+        if getattr(args, "ramlimit"):
+            check_ramlimit_value(args.ramlimit)
+        run_command("list", args)
+        sys.exit(0)
+    if not user_command:
+        if getattr(args, "ramlimit"):
+            check_ramlimit_value(args.ramlimit)
+            parser.error("COMMAND not found")
+        run_command("list", args)
+        sys.exit(0)
 
     # Triggered by: 'npu-toolbox unknown-command'
     if user_command not in COMMANDS:
         parser.error(f"'{user_command}' is not a valid COMMAND.")
-    elif args.ramlimit is not None:
+    elif getattr(args, "ramlimit"):
         check_ramlimit_value(args.ramlimit, 50)
 
     # Triggered by: 'npu-toolbox command --help' 

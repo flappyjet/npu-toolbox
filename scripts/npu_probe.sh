@@ -1,5 +1,20 @@
 #!/bin/bash
-OUTPUT_DIR="${TOOLBOX_BASE_DIR:-$(pwd)}"
+OUTPUT_DIR="${TOOLBOX_BASE_DIR:-'/tmp'}"
+OUTPUT_FILE=/tmp/npu_env.toml
+if [[ -d "$OUTPUT_DIR" ]]; then
+    OUTPUT_FILE="$OUTPUT_DIR"/npu_env.toml
+fi
+
+show_help() {
+    echo 'You may be asked `sudo` to get NPU hardware info'
+    exit 0
+}
+
+# If the first argument is --help or -h, show help
+if [[ "$1" == "--help" ]] || [[ "$1" == "-h" ]]; then
+    show_help
+fi
+
 get_vendor_npu() {
     local vendor_devices=("/dev/galcore" "/dev/rknpu")
     for dev in "${vendor_devices[@]}"; do
@@ -192,4 +207,4 @@ find_lib() {
         fi
     fi
 
-) | tee $OUTPUT_DIR/npu_env.toml
+) | tee $OUTPUT_FILE
