@@ -16,6 +16,8 @@ import ai_edge_litert.interpreter as litert
 from PIL import Image
 from pathlib import Path
 import tomllib
+import http.server
+import socketserver
 
 _BASE_DIR = os.environ.get('TOOLBOX_BASE_DIR')
 TOOLBOX_BASE_DIR = (Path(_BASE_DIR) if _BASE_DIR else Path(__file__).parent.parent).resolve()
@@ -92,8 +94,8 @@ def extract_results(interp, model_type, labels):
         # output: [1, NumClasses]
         probs = interp.get_tensor(out[0]['index'])[0]
         idx = np.argmax(probs)
-        label = f"{labels[idx]}" if idx < len(labels) else "--"
-        return {"summary": f"ID:{idx}|{label}", "details": [{"class_id": idx, "label": label, "score": float(probs[idx])}]}
+        label = f"{labels[idx]}" if int(idx) < len(labels) else "--"
+        return {"summary": f"ID:{idx}|{label}", "details": [{"class_id": int(idx), "label": label}]}
 
 
 def run_benchmark(model_tag, config, img_list, delegate=None):
@@ -150,11 +152,144 @@ def print_to_console(model_tag, results):
         print(f"{data['image']:<20} | {data['backend']:<7} | {data['invoke_ms']:>9.2f} | {data['summary']}")
         print("-" * 80)
 
+def save_as_html(all_data):
+    json_data = json.dumps(all_data, indent=2)
+    html_template = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="UTF-8"><title>NPU Benchmark</title>
+        <style>
+            body { font-family: -apple-system, system-ui, sans-serif; background: #f0f2f5; padding: 30px; color: #333; }
+            h1 { text-align: center; color: #1a73e8; margin-bottom: 40px; }
+            
+            .model-section { background: #fff; border-radius: 12px; padding: 25px; margin-bottom: 50px; shadow: 0 4px 15px rgba(0,0,0,0.08); }
+            .model-header { border-left: 5px solid #1a73e8; padding-left: 15px; margin-bottom: 25px; }
+            .model-header h2 { margin: 0; text-transform: uppercase; letter-spacing: 1px; }
+
+            .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(360px, 1fr)); gap: 10px; }
+
+            .card { background: #fafafa; border: 1px solid #eee; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+            .img-name { font-weight: bold; font-size: 14px; padding: 5px 0; text-align:center; }
+            .img-wrap { position: relative; width: 100%; background: #000; }
+            .img-wrap img { width: 100%; height: 100%; }
+            
+            .box { position: absolute; border: 2px solid #00ff00; background: rgba(0,255,0,0.1); pointer-events: none; }
+            .label-tag { position: absolute; top: -16px; left: -2px; background: #00ff00; color: #000; font-size: 9px; padding: 0 3px; font-weight: bold; }
+            
+            .content { padding: 15px; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-evenly; }
+           
+            .backend-info { margin-bottom: 10px; }
+            .badge { display: inline-block; padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: bold; margin-bottom: 4px; }
+            .cpu-badge { background: #6c757d; color: white; }
+            .npu-badge { background: #28a745; color: white; }
+            
+            .stat-line { font-size: 13px; line-height: 1.4; }
+            .ms-val { font-family: monospace; font-weight: bold; color: #d93025; }
+            .res-val { color: #555; font-style: italic; }
+        </style>
+    </head>
+    <body>
+        <h1>NPU benchmark</h1>
+        <div id="report-root"></div>
+
+        <script>
+            const flatData = __JSON_DATA__["data"];
+            const root = document.getElementById('report-root');
+
+            const grouped = flatData.reduce((acc, item) => {
+                if (!acc[item.model]) acc[item.model] = {};
+                if (!acc[item.model][item.image]) acc[item.model][item.image] = {};
+                acc[item.model][item.image][item.backend] = item;
+                return acc;
+            }, {});
+
+            for (const [modelName, images] of Object.entries(grouped)) {
+                const section = document.createElement('div');
+                section.className = 'model-section';
+                section.innerHTML = `<div class="model-header"><h2>Model: ${modelName}</h2></div>`;
+                
+                const grid = document.createElement('div');
+                grid.className = 'grid';
+
+                for (const [imgName, backends] of Object.entries(images)) {
+                    const card = document.createElement('div');
+                    card.className = 'card';
+                    
+                    const npuData = backends['NPU'];
+                    const cpuData = backends['CPU'];
+
+                    // object detection
+                    let boxesHtml = '';
+                    if (npuData && npuData.details) {
+                        npuData.details.forEach(d => {
+                            if (d.box) {
+                                const [y1, x1, y2, x2] = d.box;
+                                boxesHtml += `<div class="box" style="top:${y1*100}%; left:${x1*100}%; width:${(x2-x1)*100}%; height:${(y2-y1)*100}%;">
+                                    <span class="label-tag">${d.label}</span>
+                                </div>`;
+                            }
+                        });
+                    }
+
+                    card.innerHTML = `
+                        <div class="img-name">${imgName}</div>
+                        <div class="img-wrap">
+                            <img src="data/${imgName}">
+                            ${boxesHtml}
+                        </div>
+                        <div class="content">
+                            <div class="backend-info">
+                                <span class="badge cpu-badge">CPU</span>
+                                <div class="stat-line">invoke time: <span class="ms-val">${cpuData ? cpuData.invoke_ms.toFixed(2) : 'N/A'} ms</span></div>
+                                <div class="stat-line">result: <span class="res-val">${cpuData ? cpuData.summary : '-'}</span></div>
+                            </div>
+                            
+                            <hr style="border:0; border-top:1px dashed #ccc; margin: 10px 0;">
+
+                            <div class="backend-info">
+                                <span class="badge npu-badge">NPU</span>
+                                <div class="stat-line">invoke time: <span class="ms-val">${npuData ? npuData.invoke_ms.toFixed(2) : 'N/A'} ms</span></div>
+                                <div class="stat-line">result: <span class="res-val">${npuData ? npuData.summary : '-'}</span></div>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                }
+                section.appendChild(grid);
+                root.appendChild(section);
+            }
+        </script>
+    </body>
+    </html>
+    """.replace("__JSON_DATA__", json_data)
+    with open(TOOLBOX_BASE_DIR / "report.html", "w", encoding="utf-8") as f:
+        f.write(html_template)
+    print("\nBenchmark finish.")
+
+class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, directory=str(TOOLBOX_BASE_DIR), **kwargs)
+    def do_GET(self):
+        if self.path == '/':
+            self.path = '/report.html'
+        return super().do_GET()
+
+def http_serve(PORT=8000):
+    Handler = CustomHTTPRequestHandler
+    with socketserver.TCPServer(("", PORT), Handler) as httpd:
+        print(f"Access report at 0.0.0.0 port {PORT} (http://your-ip:{PORT}/) ...")
+        print("Press Ctrl+C to stop HTTP server")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("\nHTTP server stopped.")
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='npu-toolbox benchmark', add_help=True)
     parser.add_argument("--delegate", help="select delegate(*.so)")
     parser.add_argument("--model", choices=["bird", "mobilenet", "ssdlite", "all"], default="all", help="select test models")
-    # parser.add_argument("--report", action="store_true", help="generate benchmark report")
+    parser.add_argument("--report", metavar='PORT', nargs='?', const=8000, type=int, help="view benchmark report, default PORT=8000")
 
     npu_info = get_platform_info()
     if not npu_info:
@@ -202,3 +337,7 @@ if __name__ == "__main__":
         else:
             print_to_console(model_tag, res)
             full_results.extend(res)
+
+    if args.report:
+        save_as_html({"data": full_results})
+        http_serve(args.report)
