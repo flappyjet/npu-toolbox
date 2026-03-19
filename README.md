@@ -36,7 +36,13 @@ NPU detection (ask sudo)
 ```
 NPU benchmark
 ```
-~/npu-toolbox# npu-toolbox benchmark
+~/npu-toolbox# npu-toolbox benchmark [OPTIONS]
+
+options:
+  -h, --help           show this help message and exit
+  --delegate DELEGATE  select delegate(*.so)
+  --model MODEL        select model from (bird,mobilenet,ssdlite,all)
+  --report [PORT]      view benchmark report, default PORT=8000
 ```
 
 # Reference

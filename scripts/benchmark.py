@@ -287,8 +287,9 @@ def http_serve(PORT=8000):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='npu-toolbox benchmark', add_help=True)
-    parser.add_argument("--delegate", help="select delegate(*.so)")
-    parser.add_argument("--model", choices=["bird", "mobilenet", "ssdlite", "all"], default="all", help="select test models")
+    parser.add_argument("--delegate", metavar='DELEGATE', help="select delegate(*.so)")
+    choices = ["bird", "mobilenet", "ssdlite", "all"]
+    parser.add_argument("--model", metavar='MODEL', choices=choices, default="all", help=f"select model from ({','.join(choices)})")
     parser.add_argument("--report", metavar='PORT', nargs='?', const=8000, type=int, help="view benchmark report, default PORT=8000")
 
     npu_info = get_platform_info()
